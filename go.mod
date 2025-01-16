@@ -27,6 +27,7 @@ require (
 	github.com/goccy/go-json v0.10.4 // indirect
 	github.com/gohugoio/hugo v0.134.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.2 // indirect
