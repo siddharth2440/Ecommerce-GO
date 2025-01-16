@@ -45,7 +45,7 @@ func (NAh *Auth_Handler_Struct) Signup(ctx *gin.Context) {
 	err_chan := make(chan error, 32)
 
 	go func() {
-		err, user := NAh.services.Sign_Up_Service(user)
+		user, err := NAh.services.Sign_Up_Service(user)
 		if err != nil {
 			err_chan <- err
 			return

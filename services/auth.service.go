@@ -28,13 +28,13 @@ func NewAuthService(Db *mongo.Client) *Auth_Service_Struct {
 // NAs := New Auth Servicew
 
 // Signup handler
-func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (error, *domain.User) {
+func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (*domain.User, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
 	if user.Username == "" || user.Email == "" || user.Gender == "" || user.Password == "" {
-		return errors.New("missing required fields"), nil
+		return nil, errors.New("missing required fields")
 	}
 
 	// Format our Data
@@ -61,7 +61,7 @@ func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (error, *doma
 
 		if err == nil {
 			fmt.Println("error nil nhi hai")
-			errChan <- fmt.Errorf("User already exists")
+			errChan <- fmt.Errorf("user already exists")
 			return
 		}
 
@@ -80,11 +80,11 @@ func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (error, *doma
 	}()
 	select {
 	case err := <-errChan:
-		return err, nil
+		return nil, err
 	case res_user := <-userChan:
-		return nil, &res_user
+		return &res_user, nil
 	case <-ctx.Done():
-		return context.DeadlineExceeded, nil
+		return nil, context.DeadlineExceeded
 	}
 }
 
