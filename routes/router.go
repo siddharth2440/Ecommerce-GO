@@ -23,12 +23,12 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 
 	// handlers
 	authhandler := handlers.New_Auth_Handler(authSevice)
-	// route
 
-	// public Routes
+	// Public Routes  -- *** Modification ***
+	publicAuthRoute := router.Group("/api/v1/auth")
 	{
-		router.POST("/signup", authhandler.Signup)
-		router.POST("/login", authhandler.Login)
+		publicAuthRoute.POST("/signup", authhandler.Signup)
+		publicAuthRoute.POST("/login", authhandler.Login)
 	}
 
 	// Private Routes

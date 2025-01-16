@@ -34,7 +34,7 @@ func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (error, *doma
 	defer cancel()
 
 	if user.Username == "" || user.Email == "" || user.Gender == "" || user.Password == "" {
-		return errors.New("Missing required fields"), nil
+		return errors.New("missing required fields"), nil
 	}
 
 	// Format our Data
@@ -44,12 +44,12 @@ func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (error, *doma
 	// var _res_user domain.User
 	errChan := make(chan error, 32)
 	userChan := make(chan domain.User, 32)
-	fmt.Println("Username")
-	fmt.Println(user.Username)
+	// fmt.Println("Username")
+	// fmt.Println(user.Username)
 	// find the User i.e., is that user exist or not
-	// to_find_the_user := bson.M{
-	// 	"username": user.Username,
-	// }
+	to_find_the_user := bson.M{
+		"username": user.Username,
+	}
 
 	go func() {
 		defer func() {
@@ -57,19 +57,13 @@ func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (error, *doma
 			close(userChan)
 		}()
 
-		// err := NAs.db.Database("ecommerce_golang").Collection("users").FindOne(ctx, to_find_the_user).Decode(&newUser)
+		err := NAs.db.Database("ecommerce_golang").Collection("users").FindOne(ctx, to_find_the_user).Decode(&newUser)
 
-		// if err != nil {
-		// 	errChan <- err
-		// 	return
-		// }
-
-		// fmt.Println(newUser.Email)
-
-		// if newUser.Username != "" {
-		// 	errChan <- fmt.Errorf("user already exists")
-		// 	return
-		// }
+		if err == nil {
+			fmt.Println("error nil nhi hai")
+			errChan <- fmt.Errorf("User already exists")
+			return
+		}
 
 		// It means that User is not exists in our Database So we need to create a user
 		insert_res, err := NAs.db.Database("ecommerce_golang").Collection("users").InsertOne(ctx, newUser)
@@ -78,7 +72,9 @@ func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (error, *doma
 			return
 		}
 
+		fmt.Println("insert_res")
 		fmt.Println(insert_res)
+
 		userChan <- *newUser
 
 	}()
@@ -129,10 +125,10 @@ func (NAs *Auth_Service_Struct) Login_service(login_payload response.LoginRespon
 		fmt.Printf("login_payload Password %v\n", login_payload.Password)
 		isValidPassword := utils.VerifyPassword(login_payload.Password, user.Password)
 		if !isValidPassword {
-			err_chan <- fmt.Errorf("invalid password")
+			err_chan <- fmt.Errorf("invalid credentials")
 			return
 		}
-		fmt.Println(user)
+		// fmt.Println(user)
 		loggedIn_user_chan <- &user
 	}()
 

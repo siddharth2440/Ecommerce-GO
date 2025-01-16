@@ -55,12 +55,12 @@ func (NAh *Auth_Handler_Struct) Signup(ctx *gin.Context) {
 
 	select {
 	case err := <-err_chan:
+		fmt.Printf("Error in Signup %v\n", err)
 		ctx.JSON(
 			http.StatusInternalServerError,
 			gin.H{
-				"error":   err,
+				"error":   err.Error(),
 				"success": false,
-				"data":    nil,
 			},
 		)
 	case result_user := <-user_chan:
@@ -108,9 +108,8 @@ func (NAh *Auth_Handler_Struct) Login(ctx *gin.Context) {
 		ctx.JSON(
 			http.StatusInternalServerError,
 			gin.H{
-				"error":   err,
+				"error":   err.Error(),
 				"success": false,
-				"data":    nil,
 			},
 		)
 	case res_response := <-user_chan:
