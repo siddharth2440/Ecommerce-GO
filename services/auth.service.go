@@ -89,7 +89,7 @@ func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (*domain.User
 }
 
 // Login Handler
-func (NAs *Auth_Service_Struct) Login_service(login_payload response.LoginResponse) (*domain.User, error) {
+func (NAs *Auth_Service_Struct) Login_service(login_payload response.LoginResponse) (*domain.User, string, error) {
 
 	// fmt.Println("Login Service is called")
 	// fmt.Println(login_payload)'
@@ -106,7 +106,7 @@ func (NAs *Auth_Service_Struct) Login_service(login_payload response.LoginRespon
 	err_chan := make(chan error, 32)
 
 	if login_payload.Password == "" || login_payload.Username == "" {
-		return nil, errors.New("invalid credentials")
+		return nil, "", errors.New("invalid credentials")
 	}
 
 	go func() {
@@ -134,13 +134,15 @@ func (NAs *Auth_Service_Struct) Login_service(login_payload response.LoginRespon
 
 	select {
 	case err := <-err_chan:
-		return nil, err
+		return nil, "", err
 	case user_details := <-loggedIn_user_chan:
-		return user_details, nil
+		// creating A JWT Token
+		token, err := utils.Create_JWT_Token(user.ID.Hex(), user.Username, user.IsAdmin)
+		if err != nil {
+			return nil, "", err
+		}
+		return user_details, token, nil
 	case <-ctx.Done():
-		return nil, context.DeadlineExceeded
+		return nil, "", context.DeadlineExceeded
 	}
-
 }
-
-// Logout Hanler

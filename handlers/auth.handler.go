@@ -96,11 +96,13 @@ func (NAh *Auth_Handler_Struct) Login(ctx *gin.Context) {
 	err_chan := make(chan error, 32)
 
 	go func() {
-		res, err := NAh.services.Login_service(login_payload)
+		res, token, err := NAh.services.Login_service(login_payload)
 		if err != nil {
 			err_chan <- err
 			return
 		}
+		fmt.Printf(" Token JWT %s\n ", token)
+		ctx.SetCookie("authCookie_golang", token, 3600, "/", "localhost", false, true) // 3600 in seconds
 		user_chan <- res
 	}()
 	select {
@@ -125,4 +127,13 @@ func (NAh *Auth_Handler_Struct) Login(ctx *gin.Context) {
 
 // Logout Hanler
 func (NAh *Auth_Handler_Struct) Logout(ctx *gin.Context) {
+
+	// clear the cookie
+	ctx.SetCookie("authCookie_golang", "", -1, "/", "localhost", false, true)
+
+	// and then return from that
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Logged Out Successfully!",
+	})
 }
