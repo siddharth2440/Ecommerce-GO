@@ -8,9 +8,10 @@ import (
 
 // defining envireoment variables Structure
 type Config struct {
-	MONGO_URI  string
-	PORT       string
-	JWT_SECRET string
+	MONGO_URI   string
+	PORT        string
+	JWT_SECRET  string
+	UPSTASH_URI string
 }
 
 func SetConfig() (*Config, error) {
@@ -28,8 +29,9 @@ func SetConfig() (*Config, error) {
 	db_uri := viper.GetString("DB_URI")
 	fmt.Printf("Database URI : %s", db_uri)
 	return &Config{
-		MONGO_URI:  viper.GetString("DB_URI"),
-		PORT:       viper.GetString("PORT"),
-		JWT_SECRET: viper.GetString("JWT_SECRET"),
+		MONGO_URI:   viper.GetString("DB_URI"),
+		PORT:        viper.GetString("PORT"),
+		JWT_SECRET:  viper.GetString("JWT_SECRET"),
+		UPSTASH_URI: viper.GetString("UPSTASH_URI"),
 	}, nil
 }

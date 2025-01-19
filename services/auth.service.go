@@ -94,7 +94,7 @@ func (NAs *Auth_Service_Struct) Login_service(login_payload response.LoginRespon
 	// fmt.Println("Login Service is called")
 	// fmt.Println(login_payload)'
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
 	to_find_user := bson.M{
@@ -116,6 +116,9 @@ func (NAs *Auth_Service_Struct) Login_service(login_payload response.LoginRespon
 		}()
 
 		fmt.Println("inside the GoRoutine......")
+		// Store inside the Redis
+
+		// DataBse ddata
 		err := NAs.db.Database("ecommerce_golang").Collection("users").FindOne(ctx, to_find_user).Decode(&user)
 		if err != nil {
 			err_chan <- err
@@ -128,6 +131,39 @@ func (NAs *Auth_Service_Struct) Login_service(login_payload response.LoginRespon
 			err_chan <- fmt.Errorf("invalid credentials")
 			return
 		}
+		redis_client := utils.Get_Redis()
+
+		/// Set the Login Data inside the Redis
+		red_res_1, err := redis_client.Set("login_info:username", user.Username, 0).Result()
+		if err != nil {
+			err_chan <- err
+			return
+		}
+		red_res_2, err := redis_client.Set("login_info:user_id", user.ID.Hex(), 0).Result()
+		if err != nil {
+			err_chan <- err
+			return
+		}
+		red_res_3, err := redis_client.Set("login_info:email", user.Email, 0).Result()
+		if err != nil {
+			err_chan <- err
+			return
+		}
+		red_res_4, err := redis_client.Set("login_info:isAdmin", user.IsAdmin, 0).Result()
+		fmt.Println("red_res")
+		fmt.Println(red_res_1)
+		fmt.Println(red_res_2)
+		fmt.Println(red_res_3)
+		fmt.Println(red_res_4)
+
+		if err != nil {
+			err_chan <- err
+			return
+		}
+
+		redis_login_result := redis_client.Get("login_info")
+		fmt.Println("redis_login_result")
+		fmt.Println(redis_login_result)
 		// fmt.Println(user)
 		loggedIn_user_chan <- &user
 	}()

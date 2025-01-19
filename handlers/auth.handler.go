@@ -9,6 +9,7 @@ import (
 	"github.com/golang/ecommerce/domain"
 	"github.com/golang/ecommerce/response"
 	"github.com/golang/ecommerce/services"
+	"github.com/golang/ecommerce/utils"
 )
 
 type Auth_Interface interface {
@@ -130,6 +131,13 @@ func (NAh *Auth_Handler_Struct) Logout(ctx *gin.Context) {
 
 	// clear the cookie
 	ctx.SetCookie("authCookie_golang", "", -1, "/", "localhost", false, true)
+
+	// clear data from Redis database
+	redis_client := utils.Get_Redis()
+	redis_client.Del("login_info:username")
+	redis_client.Del("login_info:user_id")
+	redis_client.Del("login_info:email")
+	redis_client.Del("login_info:isAdmin")
 
 	// and then return from that
 	ctx.JSON(http.StatusOK, gin.H{
