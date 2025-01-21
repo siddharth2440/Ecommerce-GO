@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang/ecommerce/domain"
@@ -90,7 +91,7 @@ func (NUs *User_Service_Struct) Get_My_Profile(userId string) (*domain.User, err
 				CreatedAt: user.CreatedAt,
 				UpdatedAt: user.UpdatedAt,
 			}
-			err = redis_client.Set("user_info"+user.ID.Hex(), to_store_user_in_redis, 0).Err()
+			err = redis_client.Set("user_info"+user.ID.Hex(), to_store_user_in_redis, time.Second*10).Err()
 			if err != nil {
 				errChan <- err
 			}
@@ -120,8 +121,191 @@ func (NUs *User_Service_Struct) Get_My_Profile(userId string) (*domain.User, err
 }
 
 // Update the UserProfile
+func (NUs *User_Service_Struct) Update_My_Profile(to_update_user_data *domain.To_update_user, userId *string) (*domain.User, error) {
+	fmt.Println("Updating the UserData...")
+
+	user_chan := make(chan *domain.User, 32)
+	err_chan := make(chan error, 32)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	// search Id of user in Redis
+	redis_client := utils.Get_Redis()
+	if redis_client == nil {
+		return nil, fmt.Errorf("redis connection failed")
+	}
+
+	r_data := redis_client.MGet("login_info:username", "login_info:user_id", "login_info:email", "login_info:isAdmin")
+	fmt.Println(r_data.Val()...)
+
+	// Print the r-Data using loop
+	for idx, val := range r_data.Val() {
+		fmt.Println("Index : ", idx)
+		fmt.Println("Value : ", val)
+	}
+
+	//  Match the redis userId with the provided userId
+	if r_data.Val()[1] != *userId {
+		err_chan <- fmt.Errorf("invalid userId pProvided")
+	}
+	//  Update the UserId in database
+	var user *domain.User
+
+	go func() {
+		defer func() {
+			close(user_chan)
+			close(err_chan)
+		}()
+
+		convert_user_to_objectId, err := primitive.ObjectIDFromHex(r_data.Val()[1].(string))
+		if err != nil {
+			err_chan <- err
+		}
+		fmt.Printf("UserId to Object ID: %v", convert_user_to_objectId)
+
+		// find the user in our dataBase and then update it
+		to_find_user_filter := bson.M{
+			"_id": convert_user_to_objectId,
+		}
+
+		err = NUs.db.Database("ecommerce_golang").Collection("users").FindOne(ctx, to_find_user_filter).Decode(&user)
+		if err != nil {
+			err_chan <- err
+			return
+		}
+		fmt.Println(*user)
+
+		if (*to_update_user_data).Email != "" {
+			(*user).Email = (*to_update_user_data).Email
+		}
+
+		if (*to_update_user_data).Gender != "" {
+			(*user).Gender = (*to_update_user_data).Gender
+		}
+		if (*to_update_user_data).Email != "" {
+			(*user).Username = (*to_update_user_data).Username
+		}
+
+		user.UpdatedAt = time.Now()
+		fmt.Println("user")
+		fmt.Println(*user)
+
+		// update in the dataavbase
+		to_update := bson.M{
+			"$set": bson.M{
+				"username": (*user).Username,
+				"email":    (*user).Email,
+				"gender":   (*user).Gender,
+			},
+		}
+
+		var update_result *domain.User
+		err = NUs.db.Database("ecommerce_golang").Collection("users").FindOneAndUpdate(ctx, to_find_user_filter, to_update).Decode(&update_result)
+		if err != nil {
+			err_chan <- err
+			return
+		}
+		fmt.Println("update_result")
+		fmt.Println(*update_result)
+		// also update the data in our Redis
+		// del_val1 := redis_client.Del("login_info:username")
+		// del_val2 := redis_client.Del("login_info:email")
+		// fmt.Println("del vals")
+		// fmt.Println(del_val1)
+		// fmt.Println(del_val2)
+
+		// add the new info to the redis
+		redis_client.Set("login_info:username", (*user).Username, 0)
+		redis_client.Set("login_info:email", (*user).Email, 0)
+
+		user_chan <- user
+	}()
+
+	select {
+	case user := <-user_chan:
+		return user, nil
+	case err := <-err_chan:
+		return nil, err
+	case <-ctx.Done():
+		return nil, context.DeadlineExceeded
+	}
+}
 
 // Delete the UserProfile
+func (NUs *User_Service_Struct) Delete_My_Profile(userId string) (*domain.User, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	user_chan := make(chan *domain.User, 32)
+	err_chan := make(chan error, 32)
+	// find and chk the userid is exis or not
+	redis_client := utils.Get_Redis()
+	if redis_client == nil {
+		err_chan <- fmt.Errorf("redis connection failed")
+	}
+
+	get_id_from_redis := redis_client.Get("login_info:user_id").Val()
+	if get_id_from_redis == "" {
+		err_chan <- fmt.Errorf("invalid userId provided")
+	}
+
+	user_Object_id, err := primitive.ObjectIDFromHex(userId)
+	if err != nil {
+		err_chan <- err
+	}
+	var user *domain.User
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	// to delete the user details from the redis
+	go func() {
+		defer func() {
+			wg.Done()
+		}()
+
+		// delete the detilas from the Redis
+		del_res := redis_client.Del("login_info:email", "login_info:isAdmin", "login_info:user_id", "login_info:username")
+		fmt.Println("del_res")
+		fmt.Println(del_res)
+	}()
+
+	wg.Add(1)
+	// to delete the user details from the MongoDb
+	go func() {
+		defer func() {
+			wg.Done()
+		}()
+
+		fmt.Println("Inside the mongo deletion")
+		delete_user_filter := bson.M{
+			"_id": user_Object_id,
+		}
+
+		fmt.Println("user_Object_id")
+		fmt.Println(user_Object_id)
+
+		err := NUs.db.Database("ecommerce_golang").Collection("users").FindOneAndDelete(ctx, delete_user_filter).Decode(&user)
+		if err != nil {
+			err_chan <- err
+			return
+		}
+		fmt.Println("mongo_del_res")
+
+		user_chan <- user
+
+	}()
+	wg.Wait()
+
+	select {
+	case user_data := <-user_chan:
+		return user_data, nil
+	case err := <-err_chan:
+		return nil, err
+	case <-ctx.Done():
+		return nil, context.DeadlineExceeded
+	}
+}
 
 // Get any User Profile    -----******
 

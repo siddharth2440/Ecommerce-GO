@@ -59,3 +59,79 @@ func (NUh *User_Handler_Struct) Get_My_Profile(ctx *gin.Context) {
 	}
 
 }
+
+// Update the UserProfile
+func (NUh *User_Handler_Struct) Update_USER_Profile(ctx *gin.Context) {
+	// user_chan := make(chan *domain.User, 32)
+	// err_chan := make(chan error, 32)
+
+	var to_update_user domain.To_update_user
+	if err := ctx.ShouldBindJSON(&to_update_user); err != nil {
+		ctx.JSON(
+			http.StatusBadRequest,
+			gin.H{
+				"error":   err.Error(),
+				"success": false,
+			})
+		return
+	}
+
+	userId := ctx.GetString("userId")
+	user, err := NUh.service.Update_My_Profile(&to_update_user, &userId)
+
+	if err != nil {
+		ctx.JSON(
+			http.StatusInternalServerError,
+			gin.H{
+				"message": "Error updating user profile",
+				"error":   err.Error(),
+			})
+		return
+	}
+
+	ctx.JSON(
+		http.StatusOK,
+		gin.H{
+			"success": true,
+			"data":    user,
+		})
+}
+
+// Delete the Userprofile
+func (NUh *User_Handler_Struct) Delete_User_Profile(ctx *gin.Context) {
+	userId := ctx.GetString("userId")
+
+	deleted_user_info_chan := make(chan *domain.User, 32)
+	err_chan := make(chan error, 32)
+
+	go func() {
+		user, err := NUh.service.Delete_My_Profile(userId)
+		if err != nil {
+			err_chan <- err
+			return
+		}
+
+		deleted_user_info_chan <- user
+	}()
+
+	select {
+	case user := <-deleted_user_info_chan:
+		ctx.JSON(
+			http.StatusOK,
+			gin.H{
+				"message": "User profile deleted successfully",
+				"data":    *user,
+			})
+	case err := <-err_chan:
+		ctx.JSON(
+			http.StatusInternalServerError,
+			gin.H{
+				"message": "Error deleting user profile",
+				"error":   err.Error(),
+			})
+	}
+}
+
+// Get the userProfile from given ID parameter
+// Getting the n number of users
+// Getting the Recently joined users
