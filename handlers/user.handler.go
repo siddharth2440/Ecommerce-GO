@@ -133,5 +133,39 @@ func (NUh *User_Handler_Struct) Delete_User_Profile(ctx *gin.Context) {
 }
 
 // Get the userProfile from given ID parameter
+func (NUh *User_Handler_Struct) GET_USER_FROM_USERID(ctx *gin.Context) {
+	userID := ctx.Param("userID")
+
+	get_user_data := make(chan *domain.User, 32)
+	err_data := make(chan error, 32)
+
+	go func() {
+		user, err := NUh.service.GET_USR_PROFILE(userID)
+		if err != nil {
+			err_data <- err
+			return
+		}
+		get_user_data <- user
+	}()
+
+	select {
+	case user := <-get_user_data:
+		ctx.JSON(
+			http.StatusOK,
+			gin.H{
+				"message": "User profile",
+				"data":    user,
+			})
+	case err := <-err_data:
+		ctx.JSON(
+			http.StatusInternalServerError,
+			gin.H{
+				"message": "Error fetching user profile",
+				"error":   err.Error(),
+			})
+	}
+
+}
+
 // Getting the n number of users
 // Getting the Recently joined users

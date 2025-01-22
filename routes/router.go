@@ -18,7 +18,6 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 	conf.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 
 	router.Use(cors.New(conf))
-	router.Use(middlewares.Rate_lim())
 
 	// services
 	authSevice := services.NewAuthService(db)
@@ -45,6 +44,7 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 		user_private_routes.GET("/me", userHandler.Get_My_Profile)
 		user_private_routes.PUT("/update_me", userHandler.Update_USER_Profile)
 		user_private_routes.DELETE("/delete_me", userHandler.Delete_User_Profile)
+		user_private_routes.GET("/user_info/:userID", userHandler.GET_USER_FROM_USERID)
 	}
 
 	// router.SetTrustedProxies([]string{"<trusted_proxy_IP_address>"})

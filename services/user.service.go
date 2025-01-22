@@ -308,6 +308,131 @@ func (NUs *User_Service_Struct) Delete_My_Profile(userId string) (*domain.User, 
 }
 
 // Get any User Profile    -----******
+func (NUs *User_Service_Struct) GET_USR_PROFILE(userID string) (*domain.User, error) {
+
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	// defer cancel()
+
+	user_chan := make(chan *domain.User, 32)
+	err_chan := make(chan error, 32)
+
+	// CHK in Redis
+	redisClient := utils.Get_Redis()
+	var user *domain.User
+
+	if redisClient == nil {
+		err_chan <- fmt.Errorf("redis connection failed")
+	}
+
+	redis_result := redisClient.HGet("user_info"+userID, "userInfo")
+	fmt.Println("redis_result.Val()")
+	fmt.Println(redis_result.Result())
+
+	user_object_id, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		err_chan <- err
+	}
+
+	to_find_user := bson.M{
+		"_id": user_object_id,
+	}
+
+	user_is_there := redis_result.Val()
+	if user_is_there == "" {
+		// Get Data from the Mongodb Database
+		go func() {
+			fmt.Println("User is not there inside the Redis database")
+
+			fmt.Println("ID to match")
+			fmt.Println(user_object_id)
+			err := NUs.db.Database("ecommerce_golang").Collection("users").FindOne(ctx, to_find_user).Decode(&user)
+			if err != nil {
+				fmt.Println("Err while decoding the data")
+				fmt.Println(err)
+				err_chan <- err
+				return
+			}
+			fmt.Println("user")
+			fmt.Println(user)
+			fmt.Println((*user).Email)
+			fmt.Println((*user).Username)
+
+			// Set to the Redis for some time
+			is_redis_updated := redisClient.HSet("user_info"+userID, "userInfo", user)
+
+			// Hmget in Hash
+			is_redis_updated_with_hmset := redisClient.HMSet(
+				"user_info"+userID,
+				map[string]interface{}{
+					"userInfo": user,
+					"username": user.Username,
+				})
+
+			if err := is_redis_updated_with_hmset.Err(); err != nil {
+				err_chan <- err
+			}
+
+			if err := is_redis_updated.Err(); err != nil {
+				err_chan <- err
+			}
+
+			user_chan <- user
+		}()
+	} else {
+		fmt.Println("From Redis")
+
+		// hmget  user_info [key] userInfo [Field] "username" [Field]
+		h_result := redisClient.HMGet("user_info"+userID, "userInfo", "username").Val()
+		fmt.Println("h_result")
+		fmt.Println(h_result)
+
+		// get all
+		data, err := redisClient.HGetAll("user_info" + userID).Result()
+		fmt.Println("data")
+		fmt.Println(data)
+
+		// exists
+		isExists, err := redisClient.HExists("user_info"+userID, "userInfo").Result()
+		if err != nil {
+			err_chan <- err
+		}
+		fmt.Println("isExists")
+		fmt.Println(isExists)
+
+		// keys
+		keys, err := redisClient.HKeys("user_info" + userID).Result()
+		if err != nil {
+			err_chan <- err
+		}
+		fmt.Println("keys")
+		fmt.Println(keys)
+
+		// values
+		values, err := redisClient.HVals("user_info" + userID).Result()
+		if err != nil {
+			err_chan <- err
+		}
+		fmt.Println("values")
+		fmt.Println(values)
+
+		// Unmarshal the user data to JSON
+		err = json.Unmarshal([]byte(user_is_there), &user)
+		if err != nil {
+			err_chan <- err
+		}
+		user_chan <- user
+	}
+
+	select {
+	case user_data := <-user_chan:
+		return user_data, nil
+	case err := <-err_chan:
+		return nil, err
+	case <-ctx.Done():
+		return nil, context.DeadlineExceeded
+	}
+
+}
 
 // Get Random n no. of users
 

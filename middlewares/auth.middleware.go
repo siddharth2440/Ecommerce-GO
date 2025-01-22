@@ -29,7 +29,7 @@ func Chk_Auth() gin.HandlerFunc {
 		fmt.Println("Claims :-")
 		fmt.Println(claims)
 		if !ok || !token.Valid {
-			ctx.JSON(401, gin.H{"error": "Unauthorized"})
+			ctx.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
 			return
 		}
 		// map[exp:1.73735283e+09 id:6789ef3f0747916de714e421 isAdmin:false username:itsmonday]
