@@ -167,5 +167,109 @@ func (NUh *User_Handler_Struct) GET_USER_FROM_USERID(ctx *gin.Context) {
 
 }
 
+// TODO := to fix and Work this and also chk this
+
 // Getting the n number of users
+func (NUh *User_Handler_Struct) GET_RANDOM_USERS(ctx *gin.Context) {
+	userNum := 1
+
+	get_random_users := make(chan *[]domain.User, 32)
+	err_chan := make(chan error, 32)
+	go func() {
+		users, err := NUh.service.GET_RANDOM_USERS(userNum)
+
+		if err != nil {
+			err_chan <- err
+			return
+		}
+		get_random_users <- users
+	}()
+
+	select {
+	case users := <-get_random_users:
+		ctx.JSON(
+			http.StatusOK,
+			gin.H{
+				"message": "Random users",
+				"data":    users,
+			})
+	case err := <-err_chan:
+		ctx.JSON(
+			http.StatusInternalServerError,
+			gin.H{
+				"message": "Error fetching random users",
+				"error":   err.Error(),
+			})
+	}
+
+}
+
 // Getting the Recently joined users
+func (NUh *User_Handler_Struct) GET_RECENT_USERS(ctx *gin.Context) {
+	userNum := 1
+	userId := ctx.GetString("userId")
+	get_recently_joined_users := make(chan *[]domain.User, 32)
+	err_chan := make(chan error, 32)
+	go func() {
+		users, err := NUh.service.GET_RECENTLY_JOINED_USERS(userNum, userId)
+
+		if err != nil {
+			err_chan <- err
+			return
+		}
+		get_recently_joined_users <- users
+	}()
+
+	select {
+	case users := <-get_recently_joined_users:
+		ctx.JSON(
+			http.StatusOK,
+			gin.H{
+				"message": "Random users",
+				"data":    users,
+			})
+	case err := <-err_chan:
+		ctx.JSON(
+			http.StatusInternalServerError,
+			gin.H{
+				"message": "Error fetching recently joined users",
+				"error":   err.Error(),
+			})
+	}
+
+}
+
+// Search for user using its username email (not me)
+func (NUh *User_Handler_Struct) SEARCH_FOR_USERS(ctx *gin.Context) {
+	userId := ctx.GetString("userId")
+	query := ctx.Query("query")
+	users_chan := make(chan *[]domain.User, 32)
+	err_chan := make(chan error, 32)
+	go func() {
+		users, err := NUh.service.Search_User(query, userId)
+
+		if err != nil {
+			err_chan <- err
+			return
+		}
+		users_chan <- users
+	}()
+
+	select {
+	case users := <-users_chan:
+		ctx.JSON(
+			http.StatusOK,
+			gin.H{
+				"message": "User not found",
+				"data":    users,
+			})
+	case err := <-err_chan:
+		ctx.JSON(
+			http.StatusInternalServerError,
+			gin.H{
+				"message": "Error fetching finding users",
+				"error":   err.Error(),
+			})
+	}
+
+}

@@ -45,6 +45,11 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 		user_private_routes.PUT("/update_me", userHandler.Update_USER_Profile)
 		user_private_routes.DELETE("/delete_me", userHandler.Delete_User_Profile)
 		user_private_routes.GET("/user_info/:userID", userHandler.GET_USER_FROM_USERID)
+
+		// TODO := to fix and Work this and also chk this
+		user_private_routes.GET("/random_users", userHandler.GET_RANDOM_USERS)
+		user_private_routes.GET("/recent_users", userHandler.GET_RECENT_USERS)
+		user_private_routes.GET("/query_user", userHandler.SEARCH_FOR_USERS)
 	}
 
 	// router.SetTrustedProxies([]string{"<trusted_proxy_IP_address>"})

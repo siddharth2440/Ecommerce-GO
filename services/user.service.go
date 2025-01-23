@@ -435,5 +435,267 @@ func (NUs *User_Service_Struct) GET_USR_PROFILE(userID string) (*domain.User, er
 }
 
 // Get Random n no. of users
+func (NUs *User_Service_Struct) GET_RANDOM_USERS(userNum int) (*[]domain.User, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	users_chan := make(chan *[]domain.User, 32)
+	err_chan := make(chan error, 32)
+
+	// search in Redis if not exists then  go for MongoDB
+	redis_client := utils.Get_Redis()
+	var users *[]domain.User
+	if redis_client == nil {
+		err_chan <- fmt.Errorf("redis connection failed")
+	}
+
+	// Search in Redis
+	getUsersFromRedis, err := redis_client.LLen("random_users").Result()
+
+	if err != nil {
+		err_chan <- fmt.Errorf("geting data from redis is failed: %v", err)
+	}
+
+	if getUsersFromRedis > 0 {
+		go func() {
+			fmt.Println("From Redis")
+			getUsersFromRedisArr, err := redis_client.LRange("random_users", 0, int64(userNum)-1).Result()
+			if err != nil {
+				err_chan <- err
+				return
+			}
+			for _, user := range getUsersFromRedisArr {
+				var get_user domain.User
+				err := json.Unmarshal([]byte(user), &get_user)
+				if err != nil {
+					err_chan <- err
+					return
+				}
+				(*users) = append(*users, get_user)
+			}
+			users_chan <- users
+		}()
+	} else {
+		fmt.Println("From MongoDB")
+
+		to_search_random_users := bson.M{
+			"$sample": bson.M{
+				"size": userNum,
+			},
+		}
+
+		go func() {
+			cur, err := NUs.db.Database("ecommerce_golang").Collection("users").Aggregate(ctx, bson.A{
+				to_search_random_users,
+			})
+			if err != nil {
+				fmt.Println("Error from get users from the database MongoDB")
+				err_chan <- err
+				return
+			}
+
+			redis_client.Del("random_users")
+
+			for cur.Next(ctx) {
+				var user domain.User
+				err := cur.Decode(&user)
+				if err != nil {
+					err_chan <- err
+				}
+				redis_client.LPush("random_users", user)
+				(*users) = append(*users, user)
+			}
+		}()
+
+	}
+
+	select {
+	case users_data := <-users_chan:
+		return users_data, nil
+	case err := <-err_chan:
+		return nil, err
+	case <-ctx.Done():
+		return nil, context.DeadlineExceeded
+	}
+}
 
 // Get Recently joined Users
+func (NUs *User_Service_Struct) GET_RECENTLY_JOINED_USERS(userNum int, userId string) (*[]domain.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	users_chan := make(chan *[]domain.User, 32)
+	err_chan := make(chan error, 32)
+
+	// search in Redis if not exists then  go for MongoDB
+	redis_client := utils.Get_Redis()
+	var users *[]domain.User
+	if redis_client == nil {
+		err_chan <- fmt.Errorf("redis connection failed")
+	}
+
+	// Search in Redis
+	joined_users, err := redis_client.SCard("recently_joined_users").Result()
+	if err != nil {
+		err_chan <- fmt.Errorf("getting data from redis is failed: %v", err)
+	}
+
+	user_obj_id, err := primitive.ObjectIDFromHex(userId)
+	if err != nil {
+		err_chan <- fmt.Errorf("parsing user id from hex is failed: %v", err)
+	}
+
+	if joined_users > 0 {
+		go func() {
+			fmt.Println("From Redis")
+			getUsersFromRedisArr, err := redis_client.SMembers("recently_joined_users").Result()
+			if err != nil {
+				err_chan <- err
+				return
+			}
+			for _, user := range getUsersFromRedisArr {
+				var get_user domain.User
+				err := json.Unmarshal([]byte(user), &get_user)
+				if err != nil {
+					err_chan <- err
+					return
+				}
+				(*users) = append(*users, get_user)
+			}
+			users_chan <- users
+		}()
+	} else {
+		fmt.Println("From MongoDB")
+
+		// not me
+		// sort the users by createdAt
+
+		to_find_latest_joined_users := bson.A{
+			bson.M{
+				"$match": bson.M{
+					"_id": user_obj_id,
+				},
+			},
+			bson.M{
+				"$sort": bson.M{"createdAt": -1},
+			},
+			bson.M{
+				"$limit": userNum,
+			},
+		}
+
+		go func() {
+			cur, err := NUs.db.Database("ecommerce_golang").Collection("users").Aggregate(ctx, to_find_latest_joined_users)
+			if err != nil {
+				fmt.Println("Error from get users from the database MongoDB")
+				err_chan <- err
+				return
+			}
+
+			for cur.Next(ctx) {
+				var user *domain.User
+				err := cur.Decode(&user)
+				if err != nil {
+					fmt.Println("Error in Decoding the User: ", err)
+					err_chan <- err
+					return
+				}
+
+				// Adding the user to our set
+				redis_client.SAdd("recently_joined_users", *user)
+				(*users) = append(*users, *user)
+				users_chan <- users
+			}
+		}()
+	}
+
+	select {
+	case users_data := <-users_chan:
+		return users_data, nil
+	case err := <-err_chan:
+		return nil, err
+	case <-ctx.Done():
+		return nil, context.DeadlineExceeded
+	}
+}
+
+// search for user using its username email (not me)
+func (NUs *User_Service_Struct) Search_User(query, userId string) (*[]domain.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	users_chan := make(chan *[]domain.User, 32)
+	err_chan := make(chan error, 32)
+
+	var users *[]domain.User
+
+	// not me
+	// gender, username, email := or
+	obj_user_id, err := primitive.ObjectIDFromHex(userId)
+	if err != nil {
+		err_chan <- fmt.Errorf("parsing user id from hex is failed: %v", err)
+	}
+
+	to_query_user := bson.M{
+		"$and": bson.A{
+			bson.M{
+				"_id": bson.M{
+					"$ne": obj_user_id,
+				},
+			},
+			bson.M{
+				"$or": bson.A{
+					// username
+					bson.M{
+						"username": bson.M{
+							"$regex":   query,
+							"$options": "i",
+						},
+					},
+					// email
+					bson.M{
+						"email": bson.M{
+							"$regex":   query,
+							"$options": "i",
+						},
+					},
+					// gender
+					bson.M{
+						"gender": query,
+					},
+				},
+			}},
+	}
+	// search in Direct mongoDb
+	go func() {
+		cur, err := NUs.db.Database("ecommerce_golang").Collection("users").Find(ctx, to_query_user)
+		if err != nil {
+			fmt.Println("Error from get users from the database MongoDB")
+			err_chan <- err
+			return
+		}
+
+		for cur.Next(ctx) {
+			var user domain.User
+			err := cur.Decode(&user)
+			if err != nil {
+				err_chan <- err
+				return
+			}
+			(*users) = append((*users), user)
+		}
+
+		users_chan <- users
+	}()
+
+	select {
+	case users_data := <-users_chan:
+		return users_data, nil
+	case err := <-err_chan:
+		return nil, err
+	case <-ctx.Done():
+		return nil, context.DeadlineExceeded
+	}
+
+}
