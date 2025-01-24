@@ -440,31 +440,32 @@ func (NUs *User_Service_Struct) GET_RANDOM_USERS(userNum int) (*[]domain.User, e
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	users_chan := make(chan *[]domain.User, 32)
+	users_chan := make(chan []domain.User, 32)
 	err_chan := make(chan error, 32)
 
 	// search in Redis if not exists then  go for MongoDB
 	redis_client := utils.Get_Redis()
-	var users *[]domain.User
+	var users []domain.User
 	if redis_client == nil {
 		err_chan <- fmt.Errorf("redis connection failed")
 	}
 
 	// Search in Redis
-	getUsersFromRedis, err := redis_client.LLen("random_users").Result()
-
-	if err != nil {
-		err_chan <- fmt.Errorf("geting data from redis is failed: %v", err)
-	}
+	getUsersFromRedis := redis_client.LLen("random_users").Val()
+	fmt.Println("getUsersFromRedis")
+	fmt.Println(getUsersFromRedis)
 
 	if getUsersFromRedis > 0 {
 		go func() {
 			fmt.Println("From Redis")
-			getUsersFromRedisArr, err := redis_client.LRange("random_users", 0, int64(userNum)-1).Result()
+			getUsersFromRedisArr, err := redis_client.LRange("random_users", 0, int64(userNum)).Result()
 			if err != nil {
 				err_chan <- err
 				return
 			}
+			fmt.Println("getUsersFromRedisArr")
+			fmt.Println(getUsersFromRedisArr)
+
 			for _, user := range getUsersFromRedisArr {
 				var get_user domain.User
 				err := json.Unmarshal([]byte(user), &get_user)
@@ -472,8 +473,12 @@ func (NUs *User_Service_Struct) GET_RANDOM_USERS(userNum int) (*[]domain.User, e
 					err_chan <- err
 					return
 				}
-				(*users) = append(*users, get_user)
+				fmt.Println("Get Usrere user")
+				fmt.Println(get_user)
+				users = append(users, get_user)
 			}
+			fmt.Println("*users")
+			fmt.Println(users)
 			users_chan <- users
 		}()
 	} else {
@@ -489,13 +494,34 @@ func (NUs *User_Service_Struct) GET_RANDOM_USERS(userNum int) (*[]domain.User, e
 			cur, err := NUs.db.Database("ecommerce_golang").Collection("users").Aggregate(ctx, bson.A{
 				to_search_random_users,
 			})
+
+			if cur.Err() != nil {
+				err_chan <- cur.Err()
+				return
+			}
+			defer cur.Close(ctx)
+
 			if err != nil {
 				fmt.Println("Error from get users from the database MongoDB")
 				err_chan <- err
 				return
 			}
 
-			redis_client.Del("random_users")
+			isKeExists, err := redis_client.Exists("random_users").Result()
+			if err != nil {
+				err_chan <- err
+				return
+			}
+
+			fmt.Printf("isKeyeEissts Res :- %v\n", isKeExists)
+
+			del_res, err := redis_client.Del("random_users").Result()
+			if err != nil {
+				err_chan <- err
+				return
+			}
+
+			fmt.Printf("Del Res :- %v\n", del_res)
 
 			for cur.Next(ctx) {
 				var user domain.User
@@ -503,16 +529,34 @@ func (NUs *User_Service_Struct) GET_RANDOM_USERS(userNum int) (*[]domain.User, e
 				if err != nil {
 					err_chan <- err
 				}
+				json_user, err := json.Marshal(user)
+				if err != nil {
+					err_chan <- err
+				}
+				lpush_result, err := redis_client.LPush("random_users", string(json_user)).Result()
+				if err != nil {
+					err_chan <- err
+				}
+				fmt.Printf("LPush Res :- %v\n", lpush_result)
 				redis_client.LPush("random_users", user)
-				(*users) = append(*users, user)
+				(users) = append(users, user)
 			}
-		}()
 
+			// Set TTl for List
+			err = redis_client.Expire("random_users", time.Second*10).Err()
+			if err != nil {
+				err_chan <- err
+				return
+			}
+
+			users_chan <- users
+		}()
 	}
 
 	select {
 	case users_data := <-users_chan:
-		return users_data, nil
+		fmt.Println("Data received: ", users_data)
+		return &users_data, nil
 	case err := <-err_chan:
 		return nil, err
 	case <-ctx.Done():
@@ -525,12 +569,12 @@ func (NUs *User_Service_Struct) GET_RECENTLY_JOINED_USERS(userNum int, userId st
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	users_chan := make(chan *[]domain.User, 32)
+	users_chan := make(chan []domain.User, 32)
 	err_chan := make(chan error, 32)
 
 	// search in Redis if not exists then  go for MongoDB
 	redis_client := utils.Get_Redis()
-	var users *[]domain.User
+	var users []domain.User
 	if redis_client == nil {
 		err_chan <- fmt.Errorf("redis connection failed")
 	}
@@ -540,6 +584,8 @@ func (NUs *User_Service_Struct) GET_RECENTLY_JOINED_USERS(userNum int, userId st
 	if err != nil {
 		err_chan <- fmt.Errorf("getting data from redis is failed: %v", err)
 	}
+	fmt.Println("joined_users")
+	fmt.Println(joined_users)
 
 	user_obj_id, err := primitive.ObjectIDFromHex(userId)
 	if err != nil {
@@ -561,7 +607,7 @@ func (NUs *User_Service_Struct) GET_RECENTLY_JOINED_USERS(userNum int, userId st
 					err_chan <- err
 					return
 				}
-				(*users) = append(*users, get_user)
+				(users) = append(users, get_user)
 			}
 			users_chan <- users
 		}()
@@ -569,12 +615,13 @@ func (NUs *User_Service_Struct) GET_RECENTLY_JOINED_USERS(userNum int, userId st
 		fmt.Println("From MongoDB")
 
 		// not me
-		// sort the users by createdAt
-
+		// sort the users by createdAt : Desc
 		to_find_latest_joined_users := bson.A{
 			bson.M{
 				"$match": bson.M{
-					"_id": user_obj_id,
+					"_id": bson.M{
+						"$ne": user_obj_id,
+					},
 				},
 			},
 			bson.M{
@@ -597,14 +644,33 @@ func (NUs *User_Service_Struct) GET_RECENTLY_JOINED_USERS(userNum int, userId st
 				var user *domain.User
 				err := cur.Decode(&user)
 				if err != nil {
+					err_chan <- err
+				}
+				json_user, err := json.Marshal(*user)
+				if err != nil {
+					err_chan <- err
+				}
+				if err != nil {
 					fmt.Println("Error in Decoding the User: ", err)
 					err_chan <- err
 					return
 				}
 
 				// Adding the user to our set
-				redis_client.SAdd("recently_joined_users", *user)
-				(*users) = append(*users, *user)
+				res, err := redis_client.SAdd("recently_joined_users", string(json_user)).Result()
+				if err != nil {
+					err_chan <- fmt.Errorf("error in adding user to redis set: %v", err)
+					return
+				}
+				fmt.Printf("SAdd Res :- %v\n", res)
+				(users) = append(users, *user)
+
+				// Setting the TTL for Reently users Set in Redis
+				_, err = redis_client.Expire("recently_joined_users", time.Second*6).Result()
+				if err != nil {
+					err_chan <- fmt.Errorf("error in setting expiration for redis set: %v", err)
+					return
+				}
 				users_chan <- users
 			}
 		}()
@@ -612,7 +678,7 @@ func (NUs *User_Service_Struct) GET_RECENTLY_JOINED_USERS(userNum int, userId st
 
 	select {
 	case users_data := <-users_chan:
-		return users_data, nil
+		return &users_data, nil
 	case err := <-err_chan:
 		return nil, err
 	case <-ctx.Done():
@@ -625,10 +691,10 @@ func (NUs *User_Service_Struct) Search_User(query, userId string) (*[]domain.Use
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	users_chan := make(chan *[]domain.User, 32)
+	users_chan := make(chan []domain.User, 32)
 	err_chan := make(chan error, 32)
 
-	var users *[]domain.User
+	var users []domain.User
 
 	// not me
 	// gender, username, email := or
@@ -679,19 +745,20 @@ func (NUs *User_Service_Struct) Search_User(query, userId string) (*[]domain.Use
 		for cur.Next(ctx) {
 			var user domain.User
 			err := cur.Decode(&user)
+			fmt.Printf("User: %v", user)
 			if err != nil {
 				err_chan <- err
 				return
 			}
-			(*users) = append((*users), user)
+			(users) = append(users, user)
 		}
-
 		users_chan <- users
 	}()
 
 	select {
 	case users_data := <-users_chan:
-		return users_data, nil
+		fmt.Printf("Users data: %v", users_data)
+		return &users_data, nil
 	case err := <-err_chan:
 		return nil, err
 	case <-ctx.Done():

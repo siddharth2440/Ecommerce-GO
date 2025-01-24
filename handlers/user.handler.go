@@ -171,7 +171,7 @@ func (NUh *User_Handler_Struct) GET_USER_FROM_USERID(ctx *gin.Context) {
 
 // Getting the n number of users
 func (NUh *User_Handler_Struct) GET_RANDOM_USERS(ctx *gin.Context) {
-	userNum := 1
+	userNum := 2
 
 	get_random_users := make(chan *[]domain.User, 32)
 	err_chan := make(chan error, 32)
@@ -206,7 +206,7 @@ func (NUh *User_Handler_Struct) GET_RANDOM_USERS(ctx *gin.Context) {
 
 // Getting the Recently joined users
 func (NUh *User_Handler_Struct) GET_RECENT_USERS(ctx *gin.Context) {
-	userNum := 1
+	userNum := 2
 	userId := ctx.GetString("userId")
 	get_recently_joined_users := make(chan *[]domain.User, 32)
 	err_chan := make(chan error, 32)
