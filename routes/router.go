@@ -6,6 +6,7 @@ import (
 	"github.com/golang/ecommerce/handlers"
 	"github.com/golang/ecommerce/middlewares"
 	"github.com/golang/ecommerce/services"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -19,6 +20,9 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 
 	router.Use(cors.New(conf))
 
+	// Setup Prometheus
+	middlewares.PrometheusInit()
+
 	// services
 	authSevice := services.NewAuthService(db)
 	userService := services.New_User_Service(db)
@@ -26,6 +30,12 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 	// handlers
 	authhandler := handlers.New_Auth_Handler(authSevice)
 	userHandler := handlers.New_User_Handler(userService)
+
+	// Prometheus Metrics Endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	// Middleware to track Metrics
+	router.Use(middlewares.TrackMetrics())
 
 	// Public Routes  -- *** Modification ***
 	publicAuthRoute := router.Group("/api/v1/auth")
