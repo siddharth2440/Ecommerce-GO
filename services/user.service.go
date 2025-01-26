@@ -676,13 +676,15 @@ func (NUs *User_Service_Struct) GET_RECENTLY_JOINED_USERS(userNum int, userId st
 		}()
 	}
 
-	select {
-	case users_data := <-users_chan:
-		return &users_data, nil
-	case err := <-err_chan:
-		return nil, err
-	case <-ctx.Done():
-		return nil, context.DeadlineExceeded
+	for {
+		select {
+		case users_data := <-users_chan:
+			return &users_data, nil
+		case err := <-err_chan:
+			return nil, err
+		case <-ctx.Done():
+			return nil, context.DeadlineExceeded
+		}
 	}
 }
 
@@ -755,14 +757,16 @@ func (NUs *User_Service_Struct) Search_User(query, userId string) (*[]domain.Use
 		users_chan <- users
 	}()
 
-	select {
-	case users_data := <-users_chan:
-		fmt.Printf("Users data: %v", users_data)
-		return &users_data, nil
-	case err := <-err_chan:
-		return nil, err
-	case <-ctx.Done():
-		return nil, context.DeadlineExceeded
+	for {
+		select {
+		case users_data := <-users_chan:
+			fmt.Printf("Users data: %v", users_data)
+			return &users_data, nil
+		case err := <-err_chan:
+			return nil, err
+		case <-ctx.Done():
+			return nil, context.DeadlineExceeded
+		}
 	}
 
 }
