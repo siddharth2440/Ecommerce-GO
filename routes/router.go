@@ -26,10 +26,12 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 	// services
 	authSevice := services.NewAuthService(db)
 	userService := services.New_User_Service(db)
+	productService := services.NewProductService(db)
 
 	// handlers
 	authhandler := handlers.New_Auth_Handler(authSevice)
 	userHandler := handlers.New_User_Handler(userService)
+	productHandler := handlers.New_Product_Handler(productService)
 
 	// Prometheus Metrics Endpoint
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -60,6 +62,26 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 		user_private_routes.GET("/random_users", userHandler.GET_RANDOM_USERS)
 		user_private_routes.GET("/recent_users", userHandler.GET_RECENT_USERS)
 		user_private_routes.GET("/query_user", userHandler.SEARCH_FOR_USERS)
+	}
+
+	// Product Routes
+	// public_product_routes := router.Group("/api/v1/product")
+	// {
+	// 	public_product_routes.GET("/query_product")
+	// 	// product information by product ID
+	// 	// get latest products
+	// 	// get random 2 or more products
+	// }
+
+	private_product_routes := router.Group("/api/v1/products")
+	private_product_routes.Use(middlewares.Chk_Auth())
+	private_product_routes.Use(middlewares.Rate_lim())
+
+	{
+		// Create a product
+		private_product_routes.POST("/add-product", productHandler.Add_Product_Handler)
+		// Update the Product
+		// Delete the Product
 	}
 
 	// router.SetTrustedProxies([]string{"<trusted_proxy_IP_address>"})
