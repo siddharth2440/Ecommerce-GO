@@ -16,6 +16,15 @@ type Product struct {
 	InStock    bool               `json:"instock" validate:"required" `
 }
 
+type To_update_product struct {
+	Title   string   `json:"title"`
+	Desc    string   `json:"desc"`
+	Img     string   `json:"img"`
+	Price   int      `json:"price"`
+	Size    []string `json:"size"`
+	InStock bool     `json:"instock"`
+}
+
 func NewProduct(title *string, description *string, image *string, categories *[]string, size *[]string, color *[]string, price *int, inStock *bool) *Product {
 	return &Product{
 		ID:         primitive.NewObjectID(),

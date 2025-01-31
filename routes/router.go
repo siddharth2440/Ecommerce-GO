@@ -65,13 +65,15 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 	}
 
 	// Product Routes
-	// public_product_routes := router.Group("/api/v1/product")
-	// {
-	// 	public_product_routes.GET("/query_product")
-	// 	// product information by product ID
-	// 	// get latest products
-	// 	// get random 2 or more products
-	// }
+	public_product_routes := router.Group("/api/v1/product")
+	public_product_routes.Use(middlewares.Rate_lim())
+	{
+		// public_product_routes.GET("/query_product")
+		// product information by product ID
+		// get latest products
+		public_product_routes.GET("/latest", productHandler.Latest_Products)
+		// get random 2 or more products
+	}
 
 	private_product_routes := router.Group("/api/v1/products")
 	private_product_routes.Use(middlewares.Chk_Auth())
@@ -81,9 +83,10 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 		// Create a product
 		private_product_routes.POST("/add-product", productHandler.Add_Product_Handler)
 		// Update the Product
+		private_product_routes.PUT("/update-product/:productId", productHandler.Update_Product_Details)
 		// Delete the Product
+		private_product_routes.DELETE("/delete-product/:productId", productHandler.Delete_Products)
 	}
-
 	// router.SetTrustedProxies([]string{"<trusted_proxy_IP_address>"})
 
 	return router
