@@ -175,3 +175,71 @@ func (NPh *Product_Handler_Struct) Update_Product_Details(ctx *gin.Context) {
 		}
 	}
 }
+
+func (NPh *Product_Handler_Struct) Get_Product_Details_By_ID(ctx *gin.Context) {
+	productId := ctx.Param("productId")
+
+	prodChan := make(chan *domain.Product, 32)
+	errChan := make(chan error, 32)
+
+	go func() {
+		prod, err := NPh.service.Get_Product_Details_By_ID(productId)
+
+		if err != nil {
+			errChan <- err
+			return
+		}
+		prodChan <- prod
+	}()
+
+	for {
+		select {
+		case product := <-prodChan:
+			ctx.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"data":    product,
+			})
+			return
+		case err := <-errChan:
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"error":   err.Error(),
+				"success": false,
+			})
+			return
+		}
+	}
+}
+
+func (NPh *Product_Handler_Struct) Product_By_Query(ctx *gin.Context) {
+	query := ctx.Query("query")
+
+	prodChan := make(chan *[]domain.Product, 32)
+	errChan := make(chan error, 32)
+
+	go func() {
+		prods, err := NPh.service.Get_Products_By_Query(query)
+
+		if err != nil {
+			errChan <- err
+			return
+		}
+		prodChan <- prods
+	}()
+
+	for {
+		select {
+		case products := <-prodChan:
+			ctx.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"data":    products,
+			})
+			return
+		case err := <-errChan:
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"error":   err.Error(),
+				"success": false,
+			})
+			return
+		}
+	}
+}

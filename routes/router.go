@@ -69,7 +69,9 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 	public_product_routes.Use(middlewares.Rate_lim())
 	{
 		// public_product_routes.GET("/query_product")
+		public_product_routes.GET("/query", productHandler.Product_By_Query)
 		// product information by product ID
+		public_product_routes.GET("/:productId", productHandler.Get_Product_Details_By_ID)
 		// get latest products
 		public_product_routes.GET("/latest", productHandler.Latest_Products)
 		// get random 2 or more products
@@ -88,6 +90,8 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 		private_product_routes.DELETE("/delete-product/:productId", productHandler.Delete_Products)
 	}
 	// router.SetTrustedProxies([]string{"<trusted_proxy_IP_address>"})
+
+	// Cart
 
 	return router
 }

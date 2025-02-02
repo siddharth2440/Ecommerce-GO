@@ -26,14 +26,17 @@ func NewProductService(db *mongo.Client) *Product_Service_Struct {
 
 // Create a Product
 func (NPs *Product_Service_Struct) Create_Product_Service(userid string, productInfo *domain.Product) (*domain.Product, error) {
+	product_ch := make(chan domain.Product, 32)
+	err_ch := make(chan error, 32)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
+	user_obj_id, err := primitive.ObjectIDFromHex(userid)
+	if err != nil {
+		err_ch <- err
+	}
 
-	newProduct := domain.NewProduct(&(*productInfo).Title, &(*productInfo).Desc, &(*productInfo).Img, &(*productInfo).Categories, &(*productInfo).Size, &(*productInfo).Color, &(*productInfo).Price, &(*productInfo).InStock)
-
-	product_ch := make(chan domain.Product, 32)
-	err_ch := make(chan error, 32)
+	newProduct := domain.NewProduct(&(*productInfo).Title, &(*productInfo).Desc, &(*productInfo).Img, &(*productInfo).Categories, &(*productInfo).Size, &(*productInfo).Color, &(*productInfo).Price, &(*productInfo).InStock, &user_obj_id)
 
 	// Check in Redis
 	redis_client := utils.Get_Redis()
@@ -42,6 +45,8 @@ func (NPs *Product_Service_Struct) Create_Product_Service(userid string, product
 		err_ch <- fmt.Errorf("redis connection failed")
 	}
 
+	fmt.Println("redis_client")
+	fmt.Println(redis_client)
 	isProducts_exists, err := redis_client.LLen("userProducts:" + userid).Result()
 	if err != nil {
 		err_ch <- err
@@ -74,8 +79,8 @@ func (NPs *Product_Service_Struct) Create_Product_Service(userid string, product
 			err_ch <- err
 		}
 		fmt.Printf("LPush Res :- %v\n", res)
-		product_ch <- *newProduct
 
+		product_ch <- *newProduct
 	}()
 
 	for {
@@ -323,10 +328,10 @@ func (NPs *Product_Service_Struct) Delete_Products_Details(product_id, userid *s
 
 }
 
-// Update the product information
+// Update the product information TODO := Redis client not found error
 func (NPs *Product_Service_Struct) Update_Products_Details(product_id *string, userid *string, update_product *domain.To_update_product) (*domain.Product, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
 	prodChan := make(chan domain.Product, 32)
@@ -344,13 +349,15 @@ func (NPs *Product_Service_Struct) Update_Products_Details(product_id *string, u
 	// }
 
 	redis_client := utils.Get_Redis()
-	if redis_client != nil {
+	if redis_client == nil {
 		errChan <- fmt.Errorf("error in getting the redis client")
 	}
 
+	var update_prod domain.Product
+
 	var wg sync.WaitGroup
 
-	wg.Add(2)
+	wg.Add(1)
 
 	// to update the details of Product in mongodb
 	go func() {
@@ -399,12 +406,16 @@ func (NPs *Product_Service_Struct) Update_Products_Details(product_id *string, u
 			return
 		}
 		fmt.Printf("Updated Product: %v", updateRes.ModifiedCount)
+		update_prod = prod
 		prodChan <- prod
 	}()
 
+	wg.Add(1)
 	// to update the details of Product in redis
 	go func() {
 		defer wg.Done()
+		fmt.Println("updatedProd: ")
+		fmt.Println(update_prod)
 
 		no_of_products, err := redis_client.LLen("userProducts:" + *userid).Result()
 		if err != nil {
@@ -436,19 +447,29 @@ func (NPs *Product_Service_Struct) Update_Products_Details(product_id *string, u
 						return
 					}
 					// remove the element from the Redis
-					_, err = redis_client.LRem("userProducts:"+*userid, 1, string(m_prod)).Result()
+					del_res, err := redis_client.LRem("userProducts:"+*userid, 1, string(m_prod)).Result()
 					if err != nil {
 						errChan <- err
 						return
 					}
+					fmt.Println("Delete Prodct Response from Redis")
+					fmt.Println(del_res)
 					// again add in the redis
-					_, err = redis_client.LPush("userProducts:"+*userid, string(m_prod)).Result()
+					l_prod, err := json.Marshal(update_prod)
 					if err != nil {
 						errChan <- err
 						return
 					}
+					pushedResult, err := redis_client.LPush("userProducts:"+*userid, string(l_prod)).Result()
+					if err != nil {
+						errChan <- err
+						return
+					}
+					fmt.Println("Pushed Result in Redis")
+					fmt.Println(pushedResult)
 				}
 			}
+			fmt.Println("Redis operation completed")
 		}
 	}()
 
@@ -457,12 +478,146 @@ func (NPs *Product_Service_Struct) Update_Products_Details(product_id *string, u
 	for {
 		select {
 		case product := <-prodChan:
+			fmt.Println(product)
 			return &product, nil
 		case err := <-errChan:
 			return nil, err
 		case <-ctx.Done():
 			return nil, context.DeadlineExceeded
 		}
+	}
+}
 
+// product information by product ID
+// first check in Redis and then MongoDB
+func (NPs *Product_Service_Struct) Get_Product_Details_By_ID(productId string) (*domain.Product, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	prodChan := make(chan *domain.Product, 32)
+	errChan := make(chan error, 32)
+
+	prod_obj_id, err := primitive.ObjectIDFromHex(productId)
+	if err != nil {
+		errChan <- err
+	}
+
+	To_query_product := bson.M{
+		"_id": bson.M{
+			"$eq": prod_obj_id,
+		},
+	}
+	var product domain.Product
+
+	go func() {
+
+		err := NPs.db.Database("ecommerce_golang").Collection("products").FindOne(ctx, To_query_product).Decode(&product)
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		prodChan <- &product
+	}()
+
+	for {
+		select {
+		case product := <-prodChan:
+			return product, nil
+		case err := <-errChan:
+			return nil, err
+		case <-ctx.Done():
+			return nil, context.DeadlineExceeded
+		}
+	}
+
+}
+
+// public_product_routes.GET("/query_product")
+func (NPs *Product_Service_Struct) Get_Products_By_Query(query string) (*[]domain.Product, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	productsChan := make(chan []domain.Product, 32)
+	errChan := make(chan error, 32)
+
+	// product title, description, price, category,color
+	query_filter := bson.M{
+		"$and": bson.A{
+			bson.M{
+				"instock": bson.M{
+					"$eq": true,
+				},
+			},
+			bson.M{
+				"$or": bson.A{
+					bson.M{
+						"title": bson.M{
+							"$regex":   query,
+							"$options": "i",
+						},
+					},
+					bson.M{
+						"desc": bson.M{
+							"$regex":   query,
+							"$options": "i",
+						},
+					},
+					bson.M{
+						"price": bson.M{
+							"$eq": query,
+						},
+					},
+					bson.M{
+						"categories": bson.M{
+							"$in": []string{query},
+						},
+					},
+					bson.M{
+						"color": bson.M{
+							"$in": []string{query},
+						},
+					},
+					bson.M{
+						"size": bson.M{
+							"$in": []string{query},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var products []domain.Product
+
+	go func() {
+
+		cur, err := NPs.db.Database("ecommerce_golang").Collection("products").Find(ctx, query_filter)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		for cur.Next(ctx) {
+			var prod domain.Product
+			err := cur.Decode(&prod)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			products = append(products, prod)
+		}
+		productsChan <- products
+
+	}()
+
+	for {
+		select {
+		case products = <-productsChan:
+			return &products, nil
+		case err := <-errChan:
+			return nil, err
+		case <-ctx.Done():
+			return nil, context.DeadlineExceeded
+		}
 	}
 }

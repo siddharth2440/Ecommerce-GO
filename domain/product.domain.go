@@ -6,6 +6,7 @@ import (
 
 type Product struct {
 	ID         primitive.ObjectID `bson:"_id" json:"_id" `
+	OwnerID    primitive.ObjectID `bson:"owner_id" json:"owner_id"`
 	Title      string             `json:"title" validate:"required" `
 	Desc       string             `json:"desc" validate:"required" `
 	Img        string             `json:"img" validate:"required" `
@@ -25,7 +26,7 @@ type To_update_product struct {
 	InStock bool     `json:"instock"`
 }
 
-func NewProduct(title *string, description *string, image *string, categories *[]string, size *[]string, color *[]string, price *int, inStock *bool) *Product {
+func NewProduct(title *string, description *string, image *string, categories *[]string, size *[]string, color *[]string, price *int, inStock *bool, ownerId *primitive.ObjectID) *Product {
 	return &Product{
 		ID:         primitive.NewObjectID(),
 		Title:      *title,
@@ -36,5 +37,6 @@ func NewProduct(title *string, description *string, image *string, categories *[
 		Color:      *color,
 		Price:      *price,
 		InStock:    *inStock,
+		OwnerID:    *ownerId,
 	}
 }
