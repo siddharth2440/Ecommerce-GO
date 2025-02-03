@@ -13,11 +13,15 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// Interfaces Signup login logout
+type AuthService interface {
+	Sign_Up_Service(user *domain.User) (*domain.User, error)
+	Login_service(login_payload response.LoginResponse) (*domain.User, string, error)
+}
+
 type Auth_Service_Struct struct {
 	db *mongo.Client
 }
-
-// Interfaces Signup login logout
 
 func NewAuthService(Db *mongo.Client) *Auth_Service_Struct {
 	return &Auth_Service_Struct{
@@ -27,7 +31,7 @@ func NewAuthService(Db *mongo.Client) *Auth_Service_Struct {
 
 // NAs := New Auth Servicew
 
-// Signup handler
+// Signup Service
 func (NAs *Auth_Service_Struct) Sign_Up_Service(user *domain.User) (*domain.User, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)

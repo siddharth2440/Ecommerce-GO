@@ -17,10 +17,10 @@ type Auth_Interface interface {
 
 // Dependency injection of Services
 type Auth_Handler_Struct struct {
-	services *services.Auth_Service_Struct
+	services services.AuthService
 }
 
-func New_Auth_Handler(services *services.Auth_Service_Struct) *Auth_Handler_Struct {
+func New_Auth_Handler(services services.AuthService) *Auth_Handler_Struct {
 	return &Auth_Handler_Struct{
 		services: services,
 	}

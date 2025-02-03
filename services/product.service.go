@@ -14,6 +14,15 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+type ProductService interface {
+	Create_Product_Service(userid string, productInfo *domain.Product) (*domain.Product, error)
+	Get_Latest_Products() (*[]domain.Product, error)
+	Delete_Products_Details(productId, userid *string) (*domain.Product, error)
+	Update_Products_Details(productId *string, userid *string, update_product *domain.To_update_product) (*domain.Product, error)
+	Get_Product_Details_By_ID(productId string) (*domain.Product, error)
+	Get_Products_By_Query(query string) (*[]domain.Product, error)
+}
+
 type Product_Service_Struct struct {
 	db *mongo.Client
 }

@@ -14,6 +14,16 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+type UserService interface {
+	Get_My_Profile(userId string) (*domain.User, error)
+	Update_My_Profile(to_update_user_data *domain.To_update_user, userId *string) (*domain.User, error)
+	Delete_My_Profile(userId string) (*domain.User, error)
+	GET_USR_PROFILE(userID string) (*domain.User, error)
+	GET_RANDOM_USERS(userNum int) (*[]domain.User, error)
+	GET_RECENTLY_JOINED_USERS(userNum int, userId string) (*[]domain.User, error)
+	Search_User(query, userId string) (*[]domain.User, error)
+}
+
 type User_Service_Struct struct {
 	db *mongo.Client
 }
