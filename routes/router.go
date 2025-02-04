@@ -27,11 +27,13 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 	authSevice := services.NewAuthService(db)
 	userService := services.New_User_Service(db)
 	productService := services.NewProductService(db)
+	cartService := services.New_Cart_Service(db)
 
 	// handlers
 	authhandler := handlers.New_Auth_Handler(authSevice)
 	userHandler := handlers.New_User_Handler(userService)
 	productHandler := handlers.New_Product_Handler(productService)
+	cartHandler := handlers.New_Cart_Handler(cartService)
 
 	// Prometheus Metrics Endpoint
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -92,6 +94,12 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 	// router.SetTrustedProxies([]string{"<trusted_proxy_IP_address>"})
 
 	// Cart
-
+	cart_routes := router.Group("/api/v1/cart")
+	cart_routes.Use(middlewares.Chk_Auth())
+	cart_routes.Use(middlewares.Rate_lim())
+	{
+		cart_routes.POST("/add-to-cart", cartHandler.Create_Cart_Handler)
+		cart_routes.GET("/my-cart", cartHandler.Get_My_Cart)
+	}
 	return router
 }
