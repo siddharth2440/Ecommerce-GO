@@ -100,6 +100,10 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 	{
 		cart_routes.POST("/add-to-cart", cartHandler.Create_Cart_Handler)
 		cart_routes.GET("/my-cart", cartHandler.Get_My_Cart)
+		cart_routes.DELETE("/delete-my-cart/:cartId", cartHandler.Delete_Cart_Handler)
+		cart_routes.GET("/all-carts", cartHandler.Get_Carts_handler)
+		// update cart details
+		cart_routes.PUT("/update-cart/:cartID", cartHandler.Update_Cart_handler)
 	}
 	return router
 }
