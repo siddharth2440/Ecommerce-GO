@@ -28,12 +28,14 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 	userService := services.New_User_Service(db)
 	productService := services.NewProductService(db)
 	cartService := services.New_Cart_Service(db)
+	orderService := services.NewOrderService(db)
 
 	// handlers
 	authhandler := handlers.New_Auth_Handler(authSevice)
 	userHandler := handlers.New_User_Handler(userService)
 	productHandler := handlers.New_Product_Handler(productService)
 	cartHandler := handlers.New_Cart_Handler(cartService)
+	orderHandler := handlers.NewOrderService(orderService)
 
 	// Prometheus Metrics Endpoint
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -105,5 +107,18 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 		// update cart details
 		cart_routes.PUT("/update-cart/:cartID", cartHandler.Update_Cart_handler)
 	}
+
+	order_Routes := router.Group("/api/v1/orders")
+	order_Routes.Use(middlewares.Chk_Auth())
+	order_Routes.Use(middlewares.Rate_lim())
+
+	{
+		order_Routes.POST("/create-order", orderHandler.Create_Order_Handler)
+		order_Routes.GET("/user-orders", orderHandler.Get_User_Orders_Handler)
+		order_Routes.GET("/orders", orderHandler.Get_Orders_Handler)
+		// Delete Order
+		// Update Order
+	}
+
 	return router
 }
