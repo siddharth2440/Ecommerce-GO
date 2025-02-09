@@ -116,8 +116,8 @@ func SetupRoutes(db *mongo.Client) *gin.Engine {
 		order_Routes.POST("/create-order", orderHandler.Create_Order_Handler)
 		order_Routes.GET("/user-orders", orderHandler.Get_User_Orders_Handler)
 		order_Routes.GET("/orders", orderHandler.Get_Orders_Handler)
-		// Delete Order
-		// Update Order
+		order_Routes.DELETE("/order/:orderId", orderHandler.Delete_Order_Handler)
+		order_Routes.PUT("/order/:orderId", orderHandler.Update_Order_Handler)
 	}
 
 	return router

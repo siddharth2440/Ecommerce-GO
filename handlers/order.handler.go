@@ -120,3 +120,79 @@ func (NOh *Order_Handler_Struct) Get_Orders_Handler(ctx *gin.Context) {
 		}
 	}
 }
+
+func (NOh *Order_Handler_Struct) Delete_Order_Handler(ctx *gin.Context) {
+	orderChan := make(chan *domain.Order, 32)
+	errChan := make(chan error, 32)
+
+	userId := ctx.GetString("userId")
+	orderId := ctx.Param("orderId")
+
+	go func() {
+		order, err := NOh.services.Delete_User_Order(userId, orderId)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		orderChan <- order
+	}()
+
+	for {
+		select {
+		case order := <-orderChan:
+			ctx.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"order":   order,
+			})
+			return
+		case err := <-errChan:
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"error":   err.Error(),
+				"success": false,
+			})
+			return
+		}
+	}
+}
+
+func (NOh *Order_Handler_Struct) Update_Order_Handler(ctx *gin.Context) {
+	var order domain.Order
+	userId := ctx.GetString("userId")
+	orderID := ctx.Param("orderId")
+
+	orderChan := make(chan *domain.Order, 32)
+	errChan := make(chan error, 32)
+	if err := ctx.ShouldBindJSON(&order); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error":   err.Error(),
+			"success": false,
+		})
+		return
+	}
+
+	go func() {
+		updated_order, err := NOh.services.Update_Order_Details(&order, userId, orderID)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		orderChan <- updated_order
+	}()
+
+	for {
+		select {
+		case order := <-orderChan:
+			ctx.JSON(http.StatusCreated, gin.H{
+				"success": true,
+				"order":   order,
+			})
+			return
+		case err := <-errChan:
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"error":   err.Error(),
+				"success": false,
+			})
+			return
+		}
+	}
+}
