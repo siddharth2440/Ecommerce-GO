@@ -1,6 +1,38 @@
 version: '3.8'
 
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api_container
+    ports:
+      - "8567:8567"
+    env_file:
+      - ./.env
+    environment:
+      - DB_URI=mongodb://admin:password@mongodb:27017
+      - UPSTASH_URI=rediss://default:AWsNAAIjcDE3Y2E2ZGEyMzNlMTM0NTMzYTIzZmFjYzIzN2YxZjgyNHAxMA@inspired-mudfish-27405.upstash.io:6379
+    develop:
+      watch:
+      - path: ./
+        action: sync
+        target: /app
+    depends_on:
+      - mongodb
+      - redis
+  
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb_container
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+    volumes:
+      - db:/data/db
+  
   prometheus:
     image: prom/prometheus
     container_name: prometheus_container
@@ -8,6 +40,8 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
+    depends_on:
+      - api
 
   grafana:
     image: grafana/grafana-oss:latest
@@ -18,3 +52,25 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     depends_on:
       - prometheus
+  
+  nginx:
+    container_name: nginx_container
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+     - "8080:8080"
+    depends_on:
+      - api
+  
+  redis:
+    container_name: redis_container
+    image: redis/redis-stack
+    ports:
+      - "6379:6379"
+      - "8001:8001"
+
+volumes:
+  db:
+    driver: local
