@@ -72,4 +72,4 @@ jobs:
                  status: ${{job.status}}
                  fields: repo,message,commit,author,action,eventName,ref,workflow,job,took,pullRequest
               env:
-                 SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/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"
+                 SLACK_WEBHOOK_URL: 'https://hooks.slack.com/services/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'
