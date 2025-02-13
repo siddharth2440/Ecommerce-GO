@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/golang/ecommerce/config"
@@ -20,6 +21,7 @@ func main() {
 		log.Fatalf("Error in Setting up the DB connection: %v", err)
 	}
 	// router
+	fmt.Println("okay we're good to go")
 	router := routes.SetupRoutes(client)
 	router.Run(":8567")
 }
