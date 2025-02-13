@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: api_container
-    image: apiImage
+    image: api_image
     ports:
       - "8567:8567"
     env_file:

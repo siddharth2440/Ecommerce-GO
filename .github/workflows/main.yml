@@ -35,7 +35,7 @@ jobs:
             - name: build the Docker image
               run: |
                 cd ./
-                docker build -t itsmonday231/apiImage .
+                docker build -t itsmonday231/api_image .
             
             - name: login to docker
               uses: docker/login-action@v2
