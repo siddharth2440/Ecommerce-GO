@@ -61,9 +61,9 @@ jobs:
               run: echo "Server is up and running!"
     
     notify:
-        needs: check-changes
-        if: needs.check-changes.outputs.server_changes=='true'
+        needs: [server]
         runs-on: ubuntu-latest
+        if: always()
 
         steps:
             - name: send notification
