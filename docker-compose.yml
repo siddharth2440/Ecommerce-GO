@@ -14,11 +14,6 @@ services:
     environment:
       - DB_URI=mongodb://admin:password@mongodb:27017
       - UPSTASH_URI=rediss://default:AWsNAAIjcDE3Y2E2ZGEyMzNlMTM0NTMzYTIzZmFjYzIzN2YxZjgyNHAxMA@inspired-mudfish-27405.upstash.io:6379
-    develop:
-      watch:
-      - path: ./
-        action: sync
-        target: /app
     depends_on:
       - mongodb
       - redis
