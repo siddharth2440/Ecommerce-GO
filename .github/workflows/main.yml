@@ -22,6 +22,35 @@ jobs:
                   filters: |
                     server:
                         - './**'
+        
+    build-push:
+        needs: check-changes
+        if: needs.check-changes.outputs.server_changes=='true'
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: checkout code
+              uses: actions/checkout@v3
+            
+            - name: Setup Docker BuildX
+              uses: docker/setup-buildx-action@v2
+            
+            - name: install docker compose
+              run: |
+                sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
+                docker-compose --version
+            
+            - name: login to docker
+              uses: docker/login-action@v3
+              with:
+                  username: ${{secrets.DOCKER_USERNAME}}
+                  password: ${{secrets.DOCKER_PAT}}
+
+            - name: push to docker
+              run: |
+                 docker-compose -f docker-compose.yml build
+                 docker-compose -f docker-compose.yml push
     server:
         needs: check-changes
         if: needs.check-changes.outputs.server_changes=='true'
@@ -30,20 +59,6 @@ jobs:
         steps:
             - name: nice working you're good to go
               run: echo "Server is up and running!"
-            
-            - name: creating a docker image
-              run: |
-                cd ./
-                docker build -t itsmonday231/api_image .
-            
-            - name: docker login
-              env:
-                DOCKER_USER: ${{secrets.DOCKER_USERNAME}}
-                DOCKER_PASS: ${{secrets.DOCKER_PAT}}
-              run: |
-                echo $DOCKER_USER | docker login -u $DOCKER_USER --password-stdin
-                docker push itsmonday231/api_image
-                docker logout
     
     notify:
         needs: [server]
