@@ -33,6 +33,7 @@ jobs:
             
             - name: creating a docker image
               run: |
+                cd ./
                 docker build -t itsmonday231/api_image .
             
             - name: docker login
